@@ -127,6 +127,8 @@ func main() {
 
 	if len(request.paths) == 2 && request.paths[0] == "echo" {
 		response.setBody(request.paths[1])
+	} else if request.target == "/user-agent" {
+		response.setBody(request.headers["User-Agent"])
 	} else if request.target != "/" {
 		response.setStatus(404, "Not Found")
 	}
