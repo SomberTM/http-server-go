@@ -8,6 +8,21 @@ import (
 	"strings"
 )
 
+type HttpRequestContext struct {
+	conn net.Conn
+	req HttpRequest
+	res HttpResponse
+	dir string
+}
+
+func (ctx *HttpRequestContext) sendResponse() {
+	_, err := ctx.conn.Write(ctx.res.writable())
+	if err != nil {
+		fmt.Println("Error sending http response: ", err.Error())
+	}
+	ctx.conn.Close()
+}
+
 type HttpRequest struct {
 	method string
 	target string
@@ -93,35 +108,23 @@ func (res *HttpResponse) writable() []byte {
 	return buf.Bytes()
 }
 
-func handleConnection(conn net.Conn) {
-defer conn.Close()
+func handleRequest(ctx HttpRequestContext) {
+	defer ctx.conn.Close()
 
-	buf := make([]byte, 4096)
-	n, err := conn.Read(buf)
-	if err != nil {
-		fmt.Println("Error reading from connection: ", err.Error())
-		os.Exit(1)
-	}
-	
-	request := ParseHttpRequest(string(buf[:n]))
-	fmt.Println("Request", request)
-
-	response := NewHttpResponse()
-
-	if len(request.paths) == 2 && request.paths[0] == "echo" {
-		response.setBody(request.paths[1])
-	} else if request.target == "/user-agent" {
-		response.setBody(request.headers["User-Agent"])
-	} else if request.target != "/" {
-		response.setStatus(404, "Not Found")
+	if len(ctx.req.paths) == 2 && ctx.req.paths[0] == "echo" {
+		ctx.res.setBody(ctx.req.paths[1])
+	} else if ctx.req.target == "/user-agent" {
+		ctx.res.setBody(ctx.req.headers["User-Agent"])
+	} else if ctx.req.target != "/" {
+		ctx.res.setStatus(404, "Not Found")
 	}
 
-	fmt.Println("Response", response)
-	conn.Write(response.writable())
+	ctx.sendResponse()
 }
 
 func main() {
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
+	fmt.Println("Program arguments", os.Args)
 	fmt.Println("Logs from your program will appear here!")
 
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
@@ -132,6 +135,7 @@ func main() {
 
 	fmt.Println("Listening on port 4221")
 
+
 	for {
 		conn, err := l.Accept()
 		if err != nil {
@@ -139,6 +143,19 @@ func main() {
 			os.Exit(1)
 		}
 
-		go handleConnection(conn)
+		buf := make([]byte, 4096)
+		n, err := conn.Read(buf)
+		if err != nil {
+			fmt.Println("Error reading from connection: ", err.Error())
+			os.Exit(1)
+		}
+
+		ctx := HttpRequestContext {
+			conn: conn,
+			req: ParseHttpRequest(string(buf[:n])),
+			res: NewHttpResponse(),
+		}
+
+		go handleRequest(ctx)
 	}
 }
