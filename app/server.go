@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -26,5 +27,22 @@ func main() {
 
 	defer conn.Close()
 
-	conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
+	buf := make([]byte, 4096)
+	n, err := conn.Read(buf)
+	if err != nil {
+		fmt.Println("Error reading from connection: ", err.Error())
+		os.Exit(1)
+	}
+	
+	request := string(buf[:n])
+	lines := strings.Split(request, "\r\n")
+	request_line := lines[0]
+	request_parts := strings.Split(request_line, " ")
+	target := request_parts[1]
+
+	if target == "/" {
+		conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
+	} else {
+		conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
+	}
 }
