@@ -92,6 +92,21 @@ func (res *HttpResponse) setBody(body string) *HttpResponse {
 	return res
 }
 
+func (res *HttpResponse) setBodyFile(abspath string) *HttpResponse {
+	file, err := os.ReadFile(abspath)
+	if err != nil {
+		res.setStatus(404, "Not Found")
+		res.setBody(fmt.Sprintf("Error reading file: %s", err.Error()))
+		return res;
+	}
+
+	res.headers["Content-Type"] = "application/octet-stream"
+	res.headers["Content-Length"] = len(file)
+	res.body = file
+
+	return res
+}
+
 func (res *HttpResponse) writable() []byte {
 	var buf bytes.Buffer
 
@@ -111,8 +126,12 @@ func (res *HttpResponse) writable() []byte {
 func handleRequest(ctx HttpRequestContext) {
 	defer ctx.conn.Close()
 
-	if len(ctx.req.paths) == 2 && ctx.req.paths[0] == "echo" {
-		ctx.res.setBody(ctx.req.paths[1])
+	if len(ctx.req.paths) == 2 {
+		if ctx.req.paths[0] == "echo" {
+			ctx.res.setBody(ctx.req.paths[1])
+		} else if ctx.req.paths[0] == "files" && ctx.dir != "" {
+			ctx.res.setBodyFile(fmt.Sprintf("%s%s", ctx.dir, ctx.req.paths[1]))
+		}
 	} else if ctx.req.target == "/user-agent" {
 		ctx.res.setBody(ctx.req.headers["User-Agent"])
 	} else if ctx.req.target != "/" {
@@ -135,6 +154,14 @@ func main() {
 
 	fmt.Println("Listening on port 4221")
 
+	var dir = ""
+	for i := 0; i < len(os.Args); i++ {
+		arg := os.Args[i]
+		if arg == "--directory" {
+			dir = os.Args[i + 1]
+			i++
+		}
+	}
 
 	for {
 		conn, err := l.Accept()
@@ -154,6 +181,7 @@ func main() {
 			conn: conn,
 			req: ParseHttpRequest(string(buf[:n])),
 			res: NewHttpResponse(),
+			dir: dir,
 		}
 
 		go handleRequest(ctx)
