@@ -126,16 +126,29 @@ func (res *HttpResponse) writable() []byte {
 func handleRequest(ctx HttpRequestContext) {
 	defer ctx.conn.Close()
 
-	if len(ctx.req.paths) == 2 {
-		if ctx.req.paths[0] == "echo" {
-			ctx.res.setBody(ctx.req.paths[1])
-		} else if ctx.req.paths[0] == "files" && ctx.dir != "" {
-			ctx.res.setBodyFile(fmt.Sprintf("%s%s", ctx.dir, ctx.req.paths[1]))
+	if ctx.req.method == "GET" {
+		if len(ctx.req.paths) == 2 {
+			if ctx.req.paths[0] == "echo" {
+				ctx.res.setBody(ctx.req.paths[1])
+			} else if ctx.req.paths[0] == "files" && ctx.dir != "" {
+				ctx.res.setBodyFile(fmt.Sprintf("%s%s", ctx.dir, ctx.req.paths[1]))
+			}
+		} else if ctx.req.target == "/user-agent" {
+			ctx.res.setBody(ctx.req.headers["User-Agent"])
+		} else if ctx.req.target != "/" {
+			ctx.res.setStatus(404, "Not Found")
 		}
-	} else if ctx.req.target == "/user-agent" {
-		ctx.res.setBody(ctx.req.headers["User-Agent"])
-	} else if ctx.req.target != "/" {
-		ctx.res.setStatus(404, "Not Found")
+	} else if ctx.req.method == "POST" {
+		if len(ctx.req.paths) == 2 && ctx.req.paths[0] == "files" {
+			abspath := fmt.Sprintf("%s%s", ctx.dir, ctx.req.paths[1])
+			err := os.WriteFile(abspath, []byte(ctx.req.body), 0644)
+			if err != nil {
+				ctx.res.setStatus(400, "Bad Request")
+				ctx.res.setBody(fmt.Sprintf("Error writing file: %s", err.Error()))
+			} else {
+				ctx.res.setStatus(201, "Created")
+			}
+		}
 	}
 
 	ctx.sendResponse()
