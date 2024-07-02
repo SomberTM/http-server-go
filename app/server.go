@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"fmt"
 	"net"
 	"os"
@@ -161,6 +162,22 @@ func handleRequest(ctx HttpRequestContext) {
 				ctx.res.setStatus(201, "Created")
 			}
 		}
+	}
+
+	target_encoding, ok := ctx.res.headers["Content-Encoding"]
+	if ok && target_encoding == "gzip" && ctx.res.body != nil {
+		var buf bytes.Buffer
+		zw := gzip.NewWriter(&buf)
+
+		_, err := zw.Write(ctx.res.body)
+		if err != nil {
+			fmt.Println("Error compressing body: ", err.Error())
+		}
+		zw.Close()
+
+		compressed_body := buf.Bytes()
+		ctx.res.headers["Content-Length"] = len(compressed_body)
+		ctx.res.body = compressed_body
 	}
 
 	ctx.sendResponse()
