@@ -127,8 +127,15 @@ func handleRequest(ctx HttpRequestContext) {
 	defer ctx.conn.Close()
 
 	accept_encoding, ok := ctx.req.headers["Accept-Encoding"]
-	if ok && accept_encoding == "gzip" {
-		ctx.res.headers["Content-Encoding"] = accept_encoding
+	if ok {
+		schemes := strings.Split(accept_encoding, ",")
+		for i := 0; i < len(schemes); i++ {
+			scheme := strings.TrimSpace(schemes[i])
+			if scheme == "gzip" {
+				ctx.res.headers["Content-Encoding"] = scheme
+				break
+			}
+		}
 	}
 
 	if ctx.req.method == "GET" {
