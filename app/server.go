@@ -126,6 +126,11 @@ func (res *HttpResponse) writable() []byte {
 func handleRequest(ctx HttpRequestContext) {
 	defer ctx.conn.Close()
 
+	accept_encoding, ok := ctx.req.headers["Accept-Encoding"]
+	if ok && accept_encoding == "gzip" {
+		ctx.res.headers["Content-Encoding"] = accept_encoding
+	}
+
 	if ctx.req.method == "GET" {
 		if len(ctx.req.paths) == 2 {
 			if ctx.req.paths[0] == "echo" {
@@ -196,6 +201,7 @@ func main() {
 			res: NewHttpResponse(),
 			dir: dir,
 		}
+
 
 		go handleRequest(ctx)
 	}
